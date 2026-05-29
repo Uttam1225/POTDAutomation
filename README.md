@@ -288,12 +288,16 @@ Write-Host "✅ Valid — logged in as: $($r.login)"
 ### Run the Full E2E Test (Daily Use)
 
 ```powershell
-# Load token into current session first
-$env:GITHUB_TOKEN = [System.Environment]::GetEnvironmentVariable('GITHUB_TOKEN', 'User')
+ Run these two commands in PowerShell (in order):
 
-# Navigate to project and run
-cd C:\Users\singhu00\Documents\POTDAutomation
-mvn test -Dtest=TestRunner
+   # 1. Load token into current session
+   $env:GITHUB_TOKEN = [System.Environment]::GetEnvironmentVariable('GITHUB_TOKEN', 'User')
+   
+   # 2. Run the E2E test
+   cd C:\Users\singhu00\Documents\POTDAutomation
+   mvn test -Dtest=TestRunner
+
+   ⚠️ Always run step 1 first in every new PowerShell window — Maven forks a JVM and inherits the env var from the current session
 ```
 
 ### Run with Tag Filter
