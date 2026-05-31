@@ -479,25 +479,17 @@ public class CodingPage extends BasePage {
      * "Runtime Error", "Time Limit Exceeded", "Memory Limit Exceeded".
      */
     public String waitForResult() {
-        System.out.println("[CodingPage] Submit clicked — awaiting verdict...");
-        String[] verdictKeywords = {
-            "Accepted", "Wrong Answer", "Compilation Error",
-            "Runtime Error", "Time Limit Exceeded", "Memory Limit Exceeded"
-        };
+        System.out.println("[CodingPage] Awaiting verdict (polling main frame + all iframes)...");
 
-        // Poll page body every second for up to 90 s until a verdict keyword appears
-        try {
-            page.waitForFunction(
-                "() => {" +
-                "  var keywords = ['Accepted','Wrong Answer','Compilation Error'," +
-                "    'Runtime Error','Time Limit Exceeded','Memory Limit Exceeded'];" +
-                "  var body = document.body ? document.body.innerText : '';" +
-                "  return keywords.some(function(k) { return body.indexOf(k) !== -1; });" +
-                "}",
-                null,
-                new Page.WaitForFunctionOptions().setTimeout(90_000));
-        } catch (Exception e) {
-            System.out.println("[CodingPage] Verdict not detected within 90s: " + e.getMessage());
+        // Poll main frame AND all iframes for up to 90 s
+        long deadline = System.currentTimeMillis() + 90_000;
+        while (System.currentTimeMillis() < deadline) {
+            String verdict = extractVerdictKeyword();
+            if (!"Unknown verdict".equals(verdict)) {
+                System.out.println("[CodingPage] Verdict: " + verdict);
+                return verdict;
+            }
+            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
         }
 
         String verdict = extractVerdictKeyword();
@@ -510,15 +502,38 @@ public class CodingPage extends BasePage {
             "Accepted", "Wrong Answer", "Compilation Error",
             "Runtime Error", "Time Limit Exceeded", "Memory Limit Exceeded"
         };
+
+        // Check main page body first
         try {
             String body = (String) page.evaluate(
                 "() => document.body ? document.body.innerText : ''");
             if (body != null) {
                 for (String kw : keywords) {
-                    if (body.contains(kw)) return kw;
+                    if (body.contains(kw)) {
+                        System.out.println("[CodingPage] Verdict found in main frame");
+                        return kw;
+                    }
                 }
             }
         } catch (Exception ignored) {}
+
+        // Also scan all child frames (GFG coding page uses iframes for the editor)
+        for (Frame frame : page.frames()) {
+            if (frame == page.mainFrame()) continue;
+            try {
+                String frameBody = (String) frame.evaluate(
+                    "() => document.body ? document.body.innerText : ''");
+                if (frameBody != null) {
+                    for (String kw : keywords) {
+                        if (frameBody.contains(kw)) {
+                            System.out.println("[CodingPage] Verdict found in frame: " + frame.url());
+                            return kw;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
         return "Unknown verdict";
     }
 

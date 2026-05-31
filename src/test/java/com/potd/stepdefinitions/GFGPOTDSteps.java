@@ -40,6 +40,7 @@ public class GFGPOTDSteps {
     private ProblemOfTheDayPage potdPage;
     private CodingPage          codingPage;
     private Page                problemEditorTab;
+    private String              editorBoilerplate = "";
 
     // -----------------------------------------------------------------------
     // Step 1 — open POTD page
@@ -186,6 +187,7 @@ public class GFGPOTDSteps {
             title       = codingPage.extractProblemTitle();
             description = codingPage.extractProblemDescription();
             boilerplate = codingPage.getCurrentEditorCode();
+            editorBoilerplate = boilerplate;  // save for retry
             String problemUrl = PlaywrightFactory.getPage().url();
             System.out.println("[GFGPOTDSteps] Problem title: " + title);
             System.out.println("[GFGPOTDSteps] Problem URL: " + problemUrl);
@@ -236,7 +238,7 @@ public class GFGPOTDSteps {
                 String description = codingPage.extractProblemDescription();
                 String current     = codingPage.getCurrentEditorCode();
                 String fixed = CopilotClient.generateFixedCppSolution(
-                        title, description, current, verdict);
+                        title, description, current, verdict, editorBoilerplate);
                 System.out.println("[GFGPOTDSteps] Fixed solution (" +
                         fixed.lines().count() + " lines):\n" + fixed);
                 codingPage.clearAndEnterCode(fixed);

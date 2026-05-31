@@ -45,9 +45,10 @@ public class CopilotClient {
             "  1. Output ONLY raw compilable code — no markdown, no ``` fences, no explanation.\n" +
             "  2. Use the EXACT class name and function signature from the provided boilerplate.\n" +
             "  3. Implement a CORRECT and efficient solution — it must pass ALL test cases on GFG.\n" +
-            "  4. Include #include<bits/stdc++.h> and 'using namespace std;' at the top.\n" +
-            "  5. Return the FULL file content, not just the function body.\n" +
-            "  6. Do NOT change the class name or function signature.\n" +
+            "  4. CRITICAL: GFG wraps your code with its own #include and using namespace std. " +
+            "     Do NOT add #include or 'using namespace std;' — output ONLY what belongs in the editor (matching the boilerplate structure).\n" +
+            "  5. Do NOT change the class name or function signature.\n" +
+            "  6. Use long long instead of int wherever input values or intermediate results can exceed 2*10^9 to avoid integer overflow.\n" +
             "  7. Use modular arithmetic (1e9+7) only if required by the problem.";
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -83,13 +84,24 @@ public class CopilotClient {
     /**
      * Asks the model to fix a C++ solution that received a wrong verdict.
      * Provides the existing (wrong) code + verdict so the model knows what to correct.
+     * Pass {@code boilerplate} so the model knows the exact output format expected.
      */
+    public static String generateFixedCppSolution(String problemTitle,
+                                                   String problemDescription,
+                                                   String wrongSolution,
+                                                   String verdict,
+                                                   String boilerplate) {
+        return callApiWithRetryContext(
+                problemTitle, problemDescription, wrongSolution, verdict, boilerplate, "C++17");
+    }
+
+    /** Backward-compatible overload without boilerplate. */
     public static String generateFixedCppSolution(String problemTitle,
                                                    String problemDescription,
                                                    String wrongSolution,
                                                    String verdict) {
         return callApiWithRetryContext(
-                problemTitle, problemDescription, wrongSolution, verdict, "C++17");
+                problemTitle, problemDescription, wrongSolution, verdict, "", "C++17");
     }
 
     /**
@@ -168,6 +180,7 @@ public class CopilotClient {
                                                    String problemDescription,
                                                    String wrongSolution,
                                                    String verdict,
+                                                   String boilerplate,
                                                    String language) {
         String githubToken = System.getenv("GITHUB_TOKEN");
         String gfgToken    = System.getenv("GFG_COPILOT_API_TOKEN");
@@ -189,10 +202,14 @@ public class CopilotClient {
             String userContent =
                 "Problem title: " + problemTitle + "\n\n" +
                 "Problem description:\n" + problemDescription + "\n\n" +
-                "The following C++ solution got '" + verdict + "' on GFG. " +
-                "Find the bug(s) and rewrite a correct solution using the same class/function signature:\n\n" +
-                wrongSolution + "\n\n" +
-                "Output ONLY the corrected, complete compilable code. No explanation.";
+                (boilerplate != null && !boilerplate.isBlank()
+                    ? "The GFG editor boilerplate (your output MUST match this exact structure):\n" + boilerplate + "\n\n"
+                    : "") +
+                "The following solution got '" + verdict + "' on GFG. " +
+                "Find and fix ALL bugs (check for integer overflow — use long long where n can be large). " +
+                "CRITICAL: Do NOT wrap in a class if the boilerplate has no class. Do NOT add #include or using namespace std.\n\n" +
+                "Wrong solution:\n" + wrongSolution + "\n\n" +
+                "Output ONLY the corrected code matching the boilerplate structure. No explanation.";
             messages.addObject().put("role", "user").put("content", userContent);
             String body = MAPPER.writeValueAsString(root);
 
@@ -286,6 +303,14 @@ public class CopilotClient {
             // Strip markdown code fences the model may include despite the prompt
             content = content.replaceAll("(?m)^```[a-zA-Z]*\\s*$", "")
                              .replaceAll("(?m)^```\\s*$", "")
+                             .trim();
+
+            // Strip #include and 'using namespace std;' lines — GFG wraps the
+            // submitted code with its own headers, so adding them causes
+            // duplicate declarations and compilation errors.
+            content = content.replaceAll("(?m)^#include\\s*<[^>]+>\\s*\\n?", "")
+                             .replaceAll("(?m)^#include\\s*\"[^\"]+\"\\s*\\n?", "")
+                             .replaceAll("(?m)^using namespace std;\\s*\\n?", "")
                              .trim();
 
             if (content.isBlank()) {
