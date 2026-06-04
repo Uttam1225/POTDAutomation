@@ -29,7 +29,12 @@ jobs:
         env:
           GFG_USERNAME:  ${{ secrets.GFG_USERNAME }}
           GFG_PASSWORD:  ${{ secrets.GFG_PASSWORD }}
-          GITHUB_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
+          # Use a classic PAT (stored as GFG_PAT_TOKEN secret) for GitHub Models API.
+          # The default GITHUB_TOKEN (ghs_...) lacks the 'models' permission and returns 401.
+          # To set up: GitHub repo → Settings → Secrets → Actions → New secret
+          #   Name:  GFG_PAT_TOKEN
+          #   Value: your classic PAT (github.com/settings/tokens → Generate new token (classic))
+          GITHUB_TOKEN:  ${{ secrets.GFG_PAT_TOKEN }}
           GFG_HEADLESS:  "true"
         run: mvn test
 
